@@ -1,12 +1,7 @@
 services:
   - type: web
     name: detectabb-backend-3
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.8
-    nativeEnvironments:
-      - key: APT_PACKAGES
-        value: tesseract-ocr tesseract-ocr-por
+    env: docker
+    repo: https://github.com/amand4priscil4/DetectaBB_Backend_3
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
