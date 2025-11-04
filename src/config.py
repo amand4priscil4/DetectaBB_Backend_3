@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     allowed_origins: list = [
     'http://localhost:8100', 
     'http://localhost:4200',
-    'https://detectabb.netlify.app'  # ← ADICIONE ESTA LINHA!
+    'https://detectabb.netlify.app' 
+    'https://detectabb.netlify.app/upload'
     ]
     
     # Sentry (opcional)
