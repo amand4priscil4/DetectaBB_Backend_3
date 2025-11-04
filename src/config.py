@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     
     # CORS
-    allowed_origins: List[str] = ["http://localhost:8100"]
+    allowed_origins: list = [
+    'http://localhost:8100', 
+    'http://localhost:4200',
+    'https://detectabb.netlify.app'  # ← ADICIONE ESTA LINHA!
+    ]
     
     # Sentry (opcional)
     sentry_dsn: str = ""
