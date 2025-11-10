@@ -1,388 +1,352 @@
 """
-Explainer - Gera explicações humanizadas para detecção de fraudes
+Sistema de Explicabilidade para Detecção de Fraudes em Boletos
+Gera explicações humanizadas e compreensíveis sobre as decisões do modelo
+COM LINGUAGEM CAUTELOSA E PROFISSIONAL
 """
 
-import logging
+import numpy as np
+from typing import Dict, List, Optional
 from datetime import datetime
+import logging
 
 logger = logging.getLogger(__name__)
 
 
-# Traduções e categorizações
-TRADUCOES_ERROS = {
-    "Primeiro dígito verificador do CNPJ inválido": {
-        "simples": "CNPJ do beneficiário incorreto",
-        "avancado": "Primeiro dígito verificador do CNPJ não corresponde ao algoritmo da Receita Federal",
-        "categoria": "dados_beneficiario"
-    },
-    "Segundo dígito verificador do CNPJ inválido": {
-        "simples": "CNPJ do beneficiário incorreto",
-        "avancado": "Segundo dígito verificador do CNPJ não corresponde ao algoritmo da Receita Federal",
-        "categoria": "dados_beneficiario"
-    },
-    "Código de barras não tem 44 dígitos": {
-        "simples": "Código de barras inválido",
-        "avancado": "Código de barras não possui o tamanho padrão FEBRABAN (44 dígitos)",
-        "categoria": "codigo_barras"
-    },
-    "DV do código de barras inválido": {
-        "simples": "Código de barras adulterado",
-        "avancado": "Dígito verificador do código de barras não corresponde ao cálculo módulo 11",
-        "categoria": "codigo_barras"
-    },
-    "Valor inconsistente": {
-        "simples": "Valor do boleto suspeito",
-        "avancado": "Valor informado não corresponde ao valor codificado na linha digitável",
-        "categoria": "valor"
-    }
-}
-
-TRADUCOES_FEATURES = {
-    "banco": "Código do banco",
-    "codigoBanco": "Código bancário FEBRABAN",
-    "agencia": "Número da agência",
-    "valor": "Valor do boleto",
-    "linha_codBanco": "Código do banco na linha digitável",
-    "linha_moeda": "Código da moeda",
-    "linha_valor": "Valor codificado"
-}
-
-CATEGORIAS = {
-    "dados_beneficiario": {
-        "icone": "🏢",
-        "nome": "Dados do Beneficiário",
-        "cor": "red"
-    },
-    "codigo_barras": {
-        "icone": "📊",
-        "nome": "Código de Barras",
-        "cor": "orange"
-    },
-    "valor": {
-        "icone": "💰",
-        "nome": "Valor do Boleto",
-        "cor": "orange"
-    },
-    "vencimento": {
-        "icone": "📅",
-        "nome": "Data de Vencimento",
-        "cor": "yellow"
-    },
-    "banco": {
-        "icone": "🏦",
-        "nome": "Instituição Bancária",
-        "cor": "blue"
-    },
-    "padrao_ml": {
-        "icone": "🤖",
-        "nome": "Padrão Detectado por IA",
-        "cor": "purple"
-    }
-}
-
-
-def gerar_explicacao_completa(
-    is_fraudulento: bool,
-    validacao: dict,
-    predicao_ml: dict,
-    dados_extraidos: dict
-) -> dict:
+def gerar_explicacao_humanizada(
+    dados_extraidos: Dict,
+    resultado_validacao: Dict,
+    predicao_ml: Dict,
+    shap_values: np.ndarray = None,
+    feature_names: List[str] = None
+) -> Dict:
     """
-    Gera explicação completa em modo simples e avançado
-    
-    Args:
-        is_fraudulento: Se é fraude ou não
-        validacao: Resultado da validação FEBRABAN
-        predicao_ml: Resultado do modelo ML
-        dados_extraidos: Dados extraídos do boleto
-    
-    Returns:
-        Explicação completa estruturada
+    Gera explicação humanizada e compreensível do resultado da análise
+    COM LINGUAGEM CAUTELOSA, SUGESTIVA E PROFISSIONAL
     """
     
-    try:
-        logger.info("Gerando explicação humanizada...")
-        
-        # Determinar nível de risco
-        score = predicao_ml.get('score_fraude', 0)
-        nivel_risco = determinar_nivel_risco(score, is_fraudulento)
-        
-        # Coletar razões
-        razoes = coletar_razoes(validacao, predicao_ml)
-        
-        # Modo simples
-        simples = gerar_modo_simples(is_fraudulento, razoes, nivel_risco, score)
-        
-        # Modo avançado
-        avancado = gerar_modo_avancado(validacao, predicao_ml, dados_extraidos)
-        
-        # Recomendação
-        recomendacao = gerar_recomendacao(is_fraudulento, nivel_risco, score)
-        
-        explicacao = {
-            "simples": simples,
-            "avancado": avancado,
-            "razoes": razoes,
-            "recomendacao": recomendacao,
-            "gerado_em": datetime.utcnow().isoformat()
-        }
-        
-        logger.info("✅ Explicação gerada com sucesso!")
-        return explicacao
-        
-    except Exception as e:
-        logger.error(f"Erro ao gerar explicação: {str(e)}")
-        return gerar_explicacao_fallback(is_fraudulento)
-
-
-def gerar_modo_simples(is_fraudulento: bool, razoes: list, nivel_risco: str, score: int) -> dict:
-    """Gera explicação simplificada para usuário leigo"""
+    is_fraudulento = predicao_ml.get('is_fraudulento', False)
+    score_fraude = predicao_ml.get('score_fraude', 0.0)
+    confianca = predicao_ml.get('confianca', 0.0)
     
+    # Determinar níveis de confiança
+    if confianca >= 0.9:
+        nivel_confianca = "Muito Alta"
+    elif confianca >= 0.75:
+        nivel_confianca = "Alta"
+    elif confianca >= 0.6:
+        nivel_confianca = "Média"
+    else:
+        nivel_confianca = "Baixa"
+    
+    # LINGUAGEM SUGESTIVA E PROFISSIONAL
     if is_fraudulento:
-        status_texto = "FRAUDULENTO"
-        resumo = "Este boleto foi identificado como falso"
-        principal_motivo = razoes[0]['titulo'] if razoes else "Inconsistências detectadas"
-        acao = "NÃO PAGUE este boleto"
+        status = "POSSIVELMENTE FALSO"
+        resumo = "Este boleto apresenta características suspeitas que sugerem possível falsificação."
+        acao_recomendada = "Recomendamos NÃO efetuar o pagamento sem verificação adicional"
     else:
-        status_texto = "VÁLIDO"
-        resumo = "Este boleto aparenta ser autêntico"
-        principal_motivo = "Todas as validações foram aprovadas"
-        acao = "Você pode pagar, mas sempre confira os dados"
+        status = "POSSIVELMENTE AUTÊNTICO"
+        resumo = "Este boleto aparenta ser autêntico, mas sempre confira os dados com o emissor."
+        acao_recomendada = "Você pode prosseguir com cautela, mas sempre verifique os dados"
     
-    # Confiança em texto
-    if score >= 80:
-        confianca_texto = "Muito Alta"
-    elif score >= 60:
-        confianca_texto = "Alta"
-    elif score >= 40:
-        confianca_texto = "Média"
-    else:
-        confianca_texto = "Baixa"
-    
-    return {
-        "status": status_texto,
-        "confianca": confianca_texto,
+    # Explicação simples para usuários leigos
+    explicacao_simples = {
+        "status": status,
+        "confianca": nivel_confianca,
         "resumo": resumo,
-        "principal_motivo": principal_motivo,
-        "acao_recomendada": acao,
-        "emoji": "🚨" if is_fraudulento else "✅"
+        "principal_motivo": _identificar_principal_motivo(resultado_validacao, predicao_ml),
+        "acao_recomendada": acao_recomendada
     }
-
-
-def gerar_modo_avancado(validacao: dict, predicao_ml: dict, dados_extraidos: dict) -> dict:
-    """Gera explicação técnica detalhada"""
     
-    # SHAP detalhado
-    features_importantes = []
-    if 'features_usadas' in predicao_ml:
-        features = predicao_ml['features_usadas']
-        # Simular importância (em produção, vem do SHAP real)
-        for nome, valor in features.items():
-            features_importantes.append({
-                "feature": nome,
-                "nome_humanizado": TRADUCOES_FEATURES.get(nome, nome),
-                "valor": valor,
-                "impacto": "alto" if abs(hash(nome) % 100) > 50 else "médio"
-            })
-    
-    return {
+    # Explicação avançada para usuários técnicos
+    explicacao_avancada = {
         "analise_tecnica": {
-            "validacao_febraban": {
-                "aprovada": validacao.get('valido', False),
-                "total_erros": len(validacao.get('erros', [])),
-                "detalhes": validacao.get('detalhes', {})
-            },
-            "modelo_ml": {
-                "classe_predita": predicao_ml.get('classe_predita'),
-                "probabilidades": predicao_ml.get('probabilidades', {}),
-                "features_usadas": len(predicao_ml.get('features_usadas', {}))
-            }
+            "modelo_ml": "Random Forest Classifier",
+            "score_fraude": round(score_fraude * 100, 2),
+            "confianca_percentual": round(confianca * 100, 2),
+            "probabilidades": predicao_ml.get('probabilidades', {}),
+            "limiar_decisao": 0.5
         },
         "metricas": {
-            "score_fraude": predicao_ml.get('score_fraude', 0),
-            "confianca_modelo": predicao_ml.get('confianca', 0),
-            "features_importantes": features_importantes[:5]  # Top 5
+            "features_analisadas": len(feature_names) if feature_names else 0,
+            "validacoes_tecnicas": len(resultado_validacao.get('erros', [])),
+            "peso_validacao": 0.4,
+            "peso_ml": 0.6
         },
         "detalhes_tecnicos": {
-            "metodo_deteccao": determinar_metodos_deteccao(validacao, predicao_ml),
-            "versao_modelo": "1.0",
-            "dados_extraidos": {
-                "banco": dados_extraidos.get('banco_nome'),
-                "codigo_banco": dados_extraidos.get('codigo_banco'),
-                "valor": dados_extraidos.get('valor'),
-                "vencimento": dados_extraidos.get('vencimento')
-            }
+            "validacao_febraban": not resultado_validacao.get('valido', True),
+            "erros_encontrados": resultado_validacao.get('erros', []),
+            "features_importantes": _extrair_features_importantes(shap_values, feature_names) if shap_values is not None else []
         }
+    }
+    
+    # Gerar razões detalhadas COM LINGUAGEM SUGESTIVA
+    razoes = _gerar_razoes_detalhadas(dados_extraidos, resultado_validacao, predicao_ml)
+    
+    # Recomendação final COM LINGUAGEM CAUTELOSA
+    recomendacao = _gerar_recomendacao(is_fraudulento, confianca, score_fraude)
+    
+    return {
+        "simples": explicacao_simples,
+        "avancado": explicacao_avancada,
+        "razoes": razoes,
+        "recomendacao": recomendacao,
+        "gerado_em": datetime.now().isoformat()
     }
 
 
-def coletar_razoes(validacao: dict, predicao_ml: dict) -> list:
-    """Coleta e categoriza todas as razões de fraude"""
+def _identificar_principal_motivo(resultado_validacao: Dict, predicao_ml: Dict) -> str:
+    """Identifica o principal motivo da classificação COM LINGUAGEM SUGESTIVA"""
     
+    erros = resultado_validacao.get('erros', [])
+    
+    if erros:
+        # Priorizar erros críticos
+        erros_criticos = [e for e in erros if 'inválido' in e.lower() or 'incorreto' in e.lower()]
+        if erros_criticos:
+            return f"Possível irregularidade detectada: {erros_criticos[0]}"
+        return f"Inconsistência identificada: {erros[0]}"
+    
+    score = predicao_ml.get('score_fraude', 0)
+    if score > 0.8:
+        return "Modelo de ML identificou padrão suspeito com alta confiança"
+    elif score > 0.6:
+        return "Modelo de ML identificou características atípicas"
+    elif score < 0.3:
+        return "Todas as verificações sugerem autenticidade"
+    else:
+        return "Análise inconclusiva - recomenda-se verificação manual"
+
+
+def _gerar_razoes_detalhadas(
+    dados_extraidos: Dict,
+    resultado_validacao: Dict,
+    predicao_ml: Dict
+) -> List[Dict]:
+    """
+    Gera lista de razões detalhadas para a classificação
+    COM LINGUAGEM SUGESTIVA E PROFISSIONAL
+    """
     razoes = []
     
-    # Razões da validação FEBRABAN
-    erros_febraban = validacao.get('erros', [])
-    for erro in erros_febraban:
-        traducao = TRADUCOES_ERROS.get(erro, {
-            "simples": erro,
-            "avancado": erro,
-            "categoria": "outros"
-        })
-        
-        categoria_key = traducao.get('categoria', 'outros')
-        categoria_info = CATEGORIAS.get(categoria_key, CATEGORIAS['padrao_ml'])
-        
+    # Razões baseadas em validação técnica
+    erros = resultado_validacao.get('erros', [])
+    for erro in erros:
+        gravidade = _determinar_gravidade(erro)
         razoes.append({
-            "gravidade": "critica",  # Erros FEBRABAN são sempre críticos
-            "categoria": categoria_key,
-            "categoria_nome": categoria_info['nome'],
-            "icone": categoria_info['icone'],
-            "cor": categoria_info['cor'],
-            "titulo": traducao['simples'],
-            "descricao_simples": traducao['simples'],
-            "descricao_avancada": traducao['avancado'],
-            "impacto": 1.0,
+            "gravidade": gravidade,
+            "categoria": "validacao_tecnica",
+            "categoria_nome": "Validação Técnica",
+            "cor": _get_cor_gravidade(gravidade),
+            "titulo": "Possível Inconsistência Técnica",
+            "descricao_simples": f"Foi identificada uma possível irregularidade: {erro}",
+            "descricao_avancada": f"Validação FEBRABAN: {erro}. Isso pode indicar adulteração ou erro na geração do boleto.",
+            "impacto": _calcular_impacto(gravidade),
             "fonte": "Validação FEBRABAN"
         })
     
-    # Razões do modelo ML (se detectou fraude)
-    if predicao_ml.get('is_fraudulento'):
-        confianca = predicao_ml.get('confianca', 0)
-        
-        # Determinar gravidade baseada na confiança
-        if confianca >= 0.8:
-            gravidade = "alta"
-        elif confianca >= 0.6:
-            gravidade = "media"
-        else:
-            gravidade = "baixa"
-        
+    # Razões baseadas em ML
+    score_fraude = predicao_ml.get('score_fraude', 0)
+    if score_fraude > 0.7:
         razoes.append({
-            "gravidade": gravidade,
-            "categoria": "padrao_ml",
-            "categoria_nome": "Padrão Detectado por IA",
-            "icone": "🤖",
-            "cor": "purple",
-            "titulo": "Padrão suspeito identificado",
-            "descricao_simples": "A inteligência artificial identificou características atípicas neste boleto",
-            "descricao_avancada": f"Modelo de Machine Learning (Random Forest) detectou padrão com {confianca*100:.1f}% de confiança baseado em {len(predicao_ml.get('features_usadas', {}))} características analisadas",
-            "impacto": confianca,
-            "fonte": "Modelo de IA"
+            "gravidade": "alta",
+            "categoria": "machine_learning",
+            "categoria_nome": "Análise de Padrões",
+            "cor": "danger",
+            "titulo": "Padrão Suspeito Identificado",
+            "descricao_simples": f"O modelo de IA identificou características que sugerem possível fraude (confiança: {score_fraude*100:.0f}%)",
+            "descricao_avancada": f"Score de fraude: {score_fraude:.2f}. O modelo Random Forest, treinado com milhares de boletos reais e falsos, identificou padrões estatísticos atípicos que podem indicar falsificação.",
+            "impacto": 85,
+            "fonte": "Machine Learning"
+        })
+    elif score_fraude < 0.3:
+        razoes.append({
+            "gravidade": "baixa",
+            "categoria": "machine_learning",
+            "categoria_nome": "Análise de Padrões",
+            "cor": "success",
+            "titulo": "Padrão Aparentemente Normal",
+            "descricao_simples": f"O modelo de IA não identificou características suspeitas significativas (confiança: {(1-score_fraude)*100:.0f}%)",
+            "descricao_avancada": f"Score de autenticidade: {1-score_fraude:.2f}. As características analisadas sugerem conformidade com padrões de boletos legítimos.",
+            "impacto": 15,
+            "fonte": "Machine Learning"
         })
     
-    # Ordenar por gravidade e impacto
-    ordem_gravidade = {"critica": 4, "alta": 3, "media": 2, "baixa": 1}
-    razoes.sort(key=lambda x: (ordem_gravidade.get(x['gravidade'], 0), x['impacto']), reverse=True)
+    # Razões baseadas em dados extraídos
+    if dados_extraidos.get('valor', 0) > 10000:
+        razoes.append({
+            "gravidade": "media",
+            "categoria": "valor",
+            "categoria_nome": "Análise de Valor",
+            "cor": "warning",
+            "titulo": "Valor Elevado",
+            "descricao_simples": f"O valor do boleto é elevado (R$ {dados_extraidos['valor']:,.2f}). Recomenda-se verificação adicional.",
+            "descricao_avancada": f"Boletos com valores acima de R$ 10.000,00 merecem atenção extra. Em caso de fraude, o prejuízo seria significativo.",
+            "impacto": 60,
+            "fonte": "Análise de Risco"
+        })
+    
+    # Se não houver razões, adicionar uma genérica
+    if not razoes:
+        razoes.append({
+            "gravidade": "baixa",
+            "categoria": "geral",
+            "categoria_nome": "Análise Geral",
+            "cor": "primary",
+            "titulo": "Análise Completa Realizada",
+            "descricao_simples": "Todas as verificações de segurança foram executadas.",
+            "descricao_avancada": "O boleto passou por validação FEBRABAN, análise de Machine Learning e verificações de padrões suspeitos.",
+            "impacto": 30,
+            "fonte": "Sistema DetectaBB"
+        })
     
     return razoes
 
 
-def gerar_recomendacao(is_fraudulento: bool, nivel_risco: str, score: int) -> dict:
-    """Gera recomendação de ação para o usuário"""
+def _gerar_recomendacao(is_fraudulento: bool, confianca: float, score_fraude: float) -> Dict:
+    """Gera recomendação personalizada COM LINGUAGEM CAUTELOSA E PROFISSIONAL"""
     
-    if not is_fraudulento:
-        return {
-            "nivel_risco": "BAIXO",
-            "emoji": "✅",
-            "cor": "green",
-            "acao_principal": "PODE PAGAR",
-            "mensagem": "Este boleto passou nas verificações de segurança. Ainda assim, sempre confira os dados do beneficiário antes de efetuar o pagamento.",
-            "proximos_passos": [
-                "Confira o nome do beneficiário",
-                "Verifique o valor e vencimento",
-                "Efetue o pagamento com segurança"
-            ]
-        }
-    
-    # Boleto fraudulento
-    if nivel_risco == "CRITICO":
-        return {
-            "nivel_risco": "CRÍTICO",
-            "emoji": "🚨",
-            "cor": "red",
-            "acao_principal": "NÃO PAGAR",
-            "mensagem": "Este boleto apresenta sinais CLAROS de fraude. NÃO efetue o pagamento sob nenhuma circunstância. Entre em contato com o emissor através de canais oficiais para verificar a autenticidade.",
-            "proximos_passos": [
-                "❌ NÃO efetue o pagamento",
-                "📞 Entre em contato com o emissor por canais oficiais",
-                "🚨 Reporte a tentativa de fraude às autoridades",
-                "⚠️ Alerte outras pessoas sobre este golpe"
-            ]
-        }
-    elif nivel_risco == "ALTO":
-        return {
-            "nivel_risco": "ALTO",
-            "emoji": "⚠️",
-            "cor": "orange",
-            "acao_principal": "SUSPEITO - NÃO PAGAR",
-            "mensagem": "Este boleto apresenta características SUSPEITAS. Recomendamos fortemente que você NÃO efetue o pagamento até confirmar sua autenticidade com o emissor.",
-            "proximos_passos": [
-                "🛑 Suspenda o pagamento",
-                "📞 Confirme com o emissor por telefone oficial",
-                "🔍 Solicite um novo boleto se houver dúvidas",
-                "⚠️ Mantenha vigilância contra possíveis golpes"
-            ]
-        }
+    if is_fraudulento:
+        if confianca >= 0.85:
+            return {
+                "nivel_risco": "ALTO",
+                "cor": "danger",
+                "acao_principal": "NÃO PAGAR (Alta Probabilidade de Fraude)",
+                "mensagem": "Este boleto apresenta FORTES indícios de falsificação. Recomendamos fortemente não efetuar o pagamento.",
+                "proximos_passos": [
+                    "NÃO efetue o pagamento deste boleto",
+                    "Entre em contato DIRETAMENTE com a empresa emissora pelos canais oficiais",
+                    "Reporte este possível boleto falso às autoridades competentes",
+                    "Solicite um novo boleto através de canais seguros e oficiais",
+                    "Verifique se o e-mail/site de origem é legítimo"
+                ]
+            }
+        elif confianca >= 0.65:
+            return {
+                "nivel_risco": "MÉDIO-ALTO",
+                "cor": "warning",
+                "acao_principal": "VERIFICAR ANTES DE PAGAR",
+                "mensagem": "Este boleto apresenta características suspeitas. É necessária verificação adicional antes do pagamento.",
+                "proximos_passos": [
+                    "Aguarde! Não pague ainda",
+                    "Confirme os dados com a empresa emissora pelos canais oficiais",
+                    "Verifique se os dados bancários correspondem aos oficiais",
+                    "Confirme a autenticidade do e-mail/site de origem",
+                    "Solicite nova via por canal seguro, se necessário"
+                ]
+            }
+        else:
+            return {
+                "nivel_risco": "MÉDIO",
+                "cor": "warning",
+                "acao_principal": "PROCEDER COM CAUTELA",
+                "mensagem": "Algumas irregularidades foram detectadas. Recomendamos verificação antes do pagamento.",
+                "proximos_passos": [
+                    "Confira cuidadosamente todos os dados do boleto",
+                    "Em caso de dúvida, contate a empresa emissora",
+                    "Verifique se o valor e vencimento estão corretos",
+                    "Confirme se o banco é o esperado para este tipo de cobrança"
+                ]
+            }
     else:
-        return {
-            "nivel_risco": "MÉDIO",
-            "emoji": "ℹ️",
-            "cor": "yellow",
-            "acao_principal": "VERIFICAR ANTES DE PAGAR",
-            "mensagem": "Este boleto apresenta algumas inconsistências. Por precaução, confirme os dados com o emissor antes de efetuar o pagamento.",
-            "proximos_passos": [
-                "🔍 Verifique os dados do beneficiário",
-                "📞 Confirme com o emissor se possível",
-                "⏸️ Considere aguardar confirmação antes de pagar",
-                "✅ Prossiga com cautela após verificação"
-            ]
-        }
+        if confianca >= 0.85:
+            return {
+                "nivel_risco": "BAIXO",
+                "cor": "success",
+                "acao_principal": "PODE PAGAR (Com Verificação)",
+                "mensagem": "Este boleto aparenta ser autêntico. Mesmo assim, sempre confira os dados antes do pagamento.",
+                "proximos_passos": [
+                    "Boleto aparenta ser legítimo",
+                    "Confira os dados: valor, vencimento e beneficiário",
+                    "Verifique se o banco corresponde ao esperado",
+                    "Em caso de qualquer dúvida, contate o emissor",
+                    "Proceda com o pagamento normalmente"
+                ]
+            }
+        elif confianca >= 0.65:
+            return {
+                "nivel_risco": "BAIXO-MÉDIO",
+                "cor": "success",
+                "acao_principal": "PROVÁVEL AUTENTICIDADE",
+                "mensagem": "O boleto passou nas verificações básicas, mas sempre confirme os dados importantes.",
+                "proximos_passos": [
+                    "Verificações de segurança aprovadas",
+                    "Confira valor e vencimento",
+                    "Em caso de dúvida, confirme com o emissor",
+                    "Você pode prosseguir com o pagamento"
+                ]
+            }
+        else:
+            return {
+                "nivel_risco": "INCERTO",
+                "cor": "medium",
+                "acao_principal": "VERIFICAR MANUALMENTE",
+                "mensagem": "Não foi possível determinar com certeza. Recomendamos verificação manual cuidadosa.",
+                "proximos_passos": [
+                    "Analise cuidadosamente todos os dados",
+                    "Confirme a autenticidade com o emissor",
+                    "Verifique os dados bancários",
+                    "Proceda somente após confirmação"
+                ]
+            }
 
 
-def determinar_nivel_risco(score: int, is_fraudulento: bool) -> str:
-    """Determina o nível de risco baseado no score"""
+def _determinar_gravidade(erro: str) -> str:
+    """Determina a gravidade de um erro"""
+    erro_lower = erro.lower()
     
-    if not is_fraudulento:
-        return "BAIXO"
-    
-    if score >= 80:
-        return "CRITICO"
-    elif score >= 60:
-        return "ALTO"
-    elif score >= 40:
-        return "MEDIO"
+    if any(palavra in erro_lower for palavra in ['inválido', 'incorreto', 'falha crítica']):
+        return 'critica'
+    elif any(palavra in erro_lower for palavra in ['dígito verificador', 'código de barras']):
+        return 'alta'
+    elif any(palavra in erro_lower for palavra in ['formato', 'incompleto']):
+        return 'media'
     else:
-        return "BAIXO"
+        return 'baixa'
 
 
-def determinar_metodos_deteccao(validacao: dict, predicao_ml: dict) -> list:
-    """Determina quais métodos detectaram fraude"""
-    
-    metodos = []
-    
-    if not validacao.get('valido', True):
-        metodos.append("validacao_febraban")
-    
-    if predicao_ml.get('is_fraudulento', False):
-        metodos.append("modelo_ml")
-    
-    return metodos
-
-
-def gerar_explicacao_fallback(is_fraudulento: bool) -> dict:
-    """Gera explicação básica em caso de erro"""
-    
-    return {
-        "simples": {
-            "status": "FRAUDULENTO" if is_fraudulento else "VÁLIDO",
-            "resumo": "Análise concluída",
-            "acao_recomendada": "Verifique os detalhes"
-        },
-        "avancado": {},
-        "razoes": [],
-        "recomendacao": {
-            "nivel_risco": "DESCONHECIDO",
-            "mensagem": "Erro ao gerar explicação detalhada"
-        }
+def _calcular_impacto(gravidade: str) -> int:
+    """Calcula o impacto numérico baseado na gravidade"""
+    impactos = {
+        'critica': 95,
+        'alta': 80,
+        'media': 60,
+        'baixa': 30
     }
+    return impactos.get(gravidade, 50)
+
+
+def _get_cor_gravidade(gravidade: str) -> str:
+    """Retorna cor Ionic para gravidade"""
+    cores = {
+        'critica': 'danger',
+        'alta': 'warning',
+        'media': 'medium',
+        'baixa': 'primary'
+    }
+    return cores.get(gravidade, 'medium')
+
+
+def _extrair_features_importantes(shap_values: np.ndarray, feature_names: List[str]) -> List[Dict]:
+    """Extrai as features mais importantes baseado nos valores SHAP"""
+    if shap_values is None or feature_names is None:
+        return []
+    
+    try:
+        # Pegar valores absolutos médios
+        importancias = np.abs(shap_values).mean(axis=0)
+        
+        # Top 5 features
+        top_indices = np.argsort(importancias)[-5:][::-1]
+        
+        features_importantes = []
+        for idx in top_indices:
+            features_importantes.append({
+                "nome": feature_names[idx],
+                "importancia": float(importancias[idx]),
+                "impacto_percentual": float(importancias[idx] / importancias.sum() * 100)
+            })
+        
+        return features_importantes
+    except Exception as e:
+        logger.error(f"Erro ao extrair features importantes: {e}")
+        return []
