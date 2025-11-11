@@ -47,7 +47,7 @@ def preparar_features(dados_extraidos: dict) -> dict:
     
     try:
         # Extrair código do banco da linha digitável
-        linha = dados_extraidos.get('linha_digitavel', '')
+        linha = dados_extraidos.get('linha_digitavel', '') or ''
         linha_digitos = linha.replace('.', '').replace(' ', '')
         
         linha_codBanco = int(linha_digitos[:3]) if len(linha_digitos) >= 3 else 0
@@ -57,21 +57,37 @@ def preparar_features(dados_extraidos: dict) -> dict:
         linha_valor = int(linha_digitos[37:47]) if len(linha_digitos) >= 47 else 0
         
         # Código do banco
-        codigo_banco = int(dados_extraidos.get('codigo_banco', 0))
+        codigo_banco = dados_extraidos.get('codigo_banco', 0)
+        if codigo_banco is None:
+            codigo_banco = 0
+        else:
+            codigo_banco = int(codigo_banco)
         
         # Valor do boleto (converter para centavos)
         valor = dados_extraidos.get('valor', 0.0)
+        if valor is None:
+            valor = 0.0
+        else:
+            valor = float(valor)
         
         # Agência (se disponível)
         agencia = dados_extraidos.get('agencia', 0)
         if agencia is None:
             agencia = 0
+        else:
+            try:
+                # Remove traço se houver (ex: "1234-5" -> "1234")
+                if isinstance(agencia, str):
+                    agencia = agencia.split('-')[0]
+                agencia = int(agencia)
+            except:
+                agencia = 0
         
         features = {
             'banco': codigo_banco,
             'codigoBanco': codigo_banco,
-            'agencia': int(agencia),
-            'valor': float(valor),
+            'agencia': agencia,
+            'valor': valor,
             'linha_codBanco': linha_codBanco,
             'linha_moeda': linha_moeda,
             'linha_valor': linha_valor
